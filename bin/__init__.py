@@ -2,10 +2,11 @@ from aqt import qt, browser, gui_hooks, Qt
 from aqt.utils import saveSplitter, restoreSplitter
 from aqt.browser.layout import BrowserLayout
 from anki.consts import *
+from anki.buildinfo import version as aversion
 from .version import *
 
 LBL = "sidebar-table"
-NVER = "1.1.0"
+NVER = "1.1.1"
 
 #########################################################################
 def move_to_side(browser: browser):
@@ -72,24 +73,50 @@ def move_to_top(browser: browser):
 #########################################################################
 def minimize_tags(browser):
     """Minimize tag editor"""
-    browser.editor.web.eval('''(async () => {
-        function min(pane) {
-            if (pane.style.cssText.match(/--pane-size:\s*[1-9]/))
-                document.querySelector('.horizontal-resizer').dispatchEvent(new MouseEvent('dblclick'))
-        }
-        await NoteEditor
-        let pane = document.querySelector('.horizontal-resizer + div .pane[style*="--pane-size:"]')
-        if (!pane) {
-            const obs = new MutationObserver((muts, obs) => {
-                pane = document.querySelector('.horizontal-resizer + div .pane[style*="--pane-size:"]')
-                if (pane) {
-                    obs.disconnect()
-                    min(pane)
-                }
+
+    if strvercmp(aversion, "2.1.63") <= 0:
+        browser.editor.web.eval('''(async () => {
+            function min(pane) {
+                console.log("click!")
+                if (!badge.classList.contains('collapsed')) badge.click()
+            }
+
+            window.requestAnimationFrame(() => {
+                let badge = document.querySelector('.note-editor > .collapse-label > .collapse-badge')
+                if (badge) min(badge)
+                else {
+                    const obs = new MutationObserver((muts, obs) => {
+                        badge = document.querySelector('.note-editor > .collapse-label > .collapse-badge')
+                        if (badge) {
+                            obs.disconnect()
+                            console.log("mut!")
+                            min(badge)
+                        }
+                    })
+                    obs.observe(document.body, {childList: true, subtree: true})
+                }           
             })
-            obs.observe(document.body, {childList: true, subtree: true})
-        } else min(pane)
-    })()''')
+        })()''')
+    else:
+        browser.editor.web.eval('''(async () => {
+            function min(pane) {
+                if (pane.style.cssText.match(/--pane-size:\s*[1-9]/))
+                    document.querySelector('.horizontal-resizer').dispatchEvent(new MouseEvent('dblclick'))
+            }
+            window.requestAnimationFrame(() => {
+                let pane = document.querySelector('.horizontal-resizer + div .pane[style*="--pane-size:"]')
+                if (!pane) {
+                    const obs = new MutationObserver((muts, obs) => {
+                        pane = document.querySelector('.horizontal-resizer + div .pane[style*="--pane-size:"]')
+                        if (pane) {
+                            obs.disconnect()
+                            min(pane)
+                        }
+                    })
+                    obs.observe(document.body, {childList: true, subtree: true})
+                } else min(pane)
+            })
+        })()''')
 
 #########################################################################
 def toggle(browser):
@@ -98,7 +125,7 @@ def toggle(browser):
         CFG['State'] = 'top'
     else:
         move_to_side(browser)
-        if CFG["Autominimize"]:
+        if CFG["Autominimize"] == True:
             minimize_tags(browser)
         CFG['State'] = 'side'
     mw.addonManager.writeConfig(__name__, CFG)
